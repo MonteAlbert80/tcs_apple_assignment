@@ -115,6 +115,10 @@ const instance = new aws.ec2.Instance(ec2instanceName, {
         securityGroup.id,
     ],
     userData: `
+        cd /
+        mkdir PyServer
+        cd PyServer
+    
         echo 'from http.server import BaseHTTPRequestHandler, HTTPServer' >> pyserver.py
         echo 'import time' >> pyserver.py
         

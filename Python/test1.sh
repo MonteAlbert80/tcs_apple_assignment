@@ -1,4 +1,9 @@
 
+#This Shell script is same as the one copied in User data.
+
+cd /home/ec2-user
+mkdir PyServer
+cd PyServer
 
 echo 'from http.server import BaseHTTPRequestHandler, HTTPServer' >> pyserver.py
 echo 'import time' >> pyserver.py
