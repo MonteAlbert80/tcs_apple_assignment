@@ -25,6 +25,9 @@ let volumeAttachmentName = config.require("volumeAttachmentName");
 //Pulling SSH key from file system. This will be used to connect to EC2 instance later.
 const pubkey:string = fs.readFileSync("../.ssh/id_rsa.pub", 'utf-8');
 
+//Pulling User data from file system. This will be inserted into ec2 userdata section
+const ec2UserData:string = fs.readFileSync("../Python/ec2initUserData.sh", 'utf-8');
+
 //Create Key pair
 const tcs_apple_kp = new aws.ec2.KeyPair("tcs_apple_kp", {
     publicKey: pubkey,
@@ -114,50 +117,16 @@ const instance = new aws.ec2.Instance(ec2instanceName, {
     vpcSecurityGroupIds: [
         securityGroup.id,
     ],
-    userData: `
-        cd /
-        mkdir PyServer
-        cd PyServer
-    
-        echo 'from http.server import BaseHTTPRequestHandler, HTTPServer' >> pyserver.py
-        echo 'import time' >> pyserver.py
-        
-        echo 'hostName = "localhost"' >> pyserver.py
-        echo 'serverPort = 80' >> pyserver.py
-        
-        echo 'class MyServer(BaseHTTPRequestHandler):' >> pyserver.py
-        echo '    def do_GET(self):' >> pyserver.py
-        echo '        self.send_response(200)' >> pyserver.py
-        echo '        self.send_header("Content-type", "text/html")' >> pyserver.py
-        echo '        self.end_headers()' >> pyserver.py
-        echo '        self.wfile.write(bytes("<html><head><title>TCS-Apple Assignment for Monte</title></head>", "utf-8"))' >> pyserver.py
-        echo '        self.wfile.write(bytes("<p>Request: %s</p>" % self.path, "utf-8"))' >> pyserver.py
-        echo '        self.wfile.write(bytes("<body>", "utf-8"))' >> pyserver.py
-        echo '        self.wfile.write(bytes("<h1>TCS-Apple Assignment for Monte</h1>", "utf-8"))' >> pyserver.py
-        echo '        self.wfile.write(bytes("<p>This is an example web server. created by Monte Albert for TCS Apple assignment</p>", "utf-8"))' >> pyserver.py
-        echo '        self.wfile.write(bytes("<p>Hostname is $(hostname -f)</p>", "utf-8"))' >> pyserver.py
-        echo '        self.wfile.write(bytes("</body></html>", "utf-8"))' >> pyserver.py
-        
-        echo 'if __name__ == "__main__":        ' >> pyserver.py
-        echo '    webServer = HTTPServer((hostName, serverPort), MyServer)' >> pyserver.py
-        echo '    print("Server started http://%s:%s" % (hostName, serverPort))' >> pyserver.py
-        
-        echo '    try:' >> pyserver.py
-        echo '        webServer.serve_forever()' >> pyserver.py
-        echo '    except KeyboardInterrupt:' >> pyserver.py
-        echo '        pass' >> pyserver.py
-        
-        echo '    webServer.server_close()' >> pyserver.py
-        echo '    print("Server stopped.")' >> pyserver.py
-        
-        python3 pyserver.py
-    `,
+    userData: ec2UserData
 });
 
+// Creating new Elastic Block Store (EBS) Volume
 const ebsVolume = new aws.ebs.Volume(ebsVolumeName, {
     availabilityZone: instance.availabilityZone,
     size: ebsVolumeSize,
 });
+
+// Attaching EVS volume to ec2 instance
 const ebsAtt = new aws.ec2.VolumeAttachment(volumeAttachmentName, {
     deviceName: "/dev/sdh",
     volumeId: ebsVolume.id,
@@ -165,3 +134,46 @@ const ebsAtt = new aws.ec2.VolumeAttachment(volumeAttachmentName, {
 });
 
 
+// Following part is for question 3 of the assignment.
+const current = aws.getCallerIdentity({});
+export const accountId = current.then(current => current.accountId);
+
+const s3bucket = new aws.s3.BucketV2("tcs-apple-s3", {});
+const allowAccessFromAnotherAccountPolicyDocument = aws.iam.getPolicyDocumentOutput({
+    statements: [{
+        principals: [{
+            type: "AWS",
+            identifiers: ["123456789012"],
+        }],
+        actions: [
+            "s3:ListBucket",
+        ],
+        resources: [
+            s3bucket.arn,
+            pulumi.interpolate`${s3bucket.arn}/*`,
+        ],
+    }],
+});
+const allowAccessFromEc2 = new aws.s3.BucketPolicy("tcs-apple-s3-bucket-policy", {
+    bucket: s3bucket.bucket,
+    policy: s3bucket.bucket.apply(s3ReadPolicyForBucket)
+    
+});
+
+function s3ReadPolicyForBucket(bucketName: string) {
+    return JSON.stringify({
+        Version: "2012-10-17",
+        Statement: [{
+            Effect: "Allow",
+            Principal: {
+                Service: "ec2.amazonaws.com"
+            },
+            Action: [
+                "s3:List*"
+            ],
+            Resource: [
+                `arn:aws:s3:::${bucketName}/*` // policy refers to bucket name explicitly
+            ],
+        }]
+    });
+}
