@@ -1,0 +1,3 @@
+name: pulum-monte-tcs-apple
+runtime: nodejs
+description: AWS Typescript Pulumi program for interview assignment for DevOps lead engineer

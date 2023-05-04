@@ -1,0 +1,9 @@
+config:
+  aws:region: us-east-2
+  pulum-monte-tcs-apple:availabilityZone: us-east-2c
+  pulum-monte-tcs-apple:azSubnet: us-east-2c
+  pulum-monte-tcs-apple:ebsVolumeName: tcs-apple-ebs
+  pulum-monte-tcs-apple:ebsVolumeSize: "1"
+  pulum-monte-tcs-apple:ec2InstanceName: tcs-apple-ec2
+  pulum-monte-tcs-apple:ec2InstanceType: t2.micro
+  pulum-monte-tcs-apple:volumeAttachmentName: tcs-apple-ebs-attach
